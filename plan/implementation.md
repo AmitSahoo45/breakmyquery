@@ -50,10 +50,11 @@ Files: `bmq/llm.py`, `hunter.py`, model/hunter tests, `scripts/eval_hunters.py`.
 Consumes core and data. Produces spec Verdict; `check(exercise, learner_sql, progress_cb=None, *, settings=None, seed=42)`.
 Settings: immutable dataclass in `bmq/config.py`, fields model, ollama_host, hunt_order (tuple), gemma_rounds, fuzz_max, fuzz_seconds, query_timeout, data_dir, ollama_timeout. `get_settings()` reads environment; `ROOT` is repository path.
 Model: spec signatures plus optional `settings`; `candidate_dataset(candidate)` verifies INSERTs, `model_available(settings=None)` reports availability. `Explanation.hint` may be None. All visible prose passes leak guard.
-- [ ] Write failing offline, malformed model output, leakage, candidate verification and full seeded hunter tests.
-- [ ] Implement propose/verify/shrink with honest counts and explicit unavailable-model status.
-- [ ] Run hunter/model tests; all 14 wrong queries caught, all eight alternatives pass, six rows maximum per counterexample.
-- [ ] Generate eval report; Gemma unavailable is reported as unavailable, never a measured success.
+- [x] Write failing offline, malformed model output, leakage, candidate verification and full seeded hunter tests.
+- [x] Implement propose/verify/shrink with honest counts and explicit unavailable-model status.
+- [x] Run hunter/model tests; all 14 wrong queries caught, all eight alternatives pass, five rows maximum per counterexample. Integrated suite: 172 passed, one live test deselected.
+- [x] Generate eval report; Gemma unavailable is reported as unavailable, never a measured success.
+- [ ] Live Gemma E1 check when local Ollama with `gemma4:e4b` is available. Code paths verified through the real Ollama client with mocked HTTP transport; live model quality/hit rate remains unmeasured.
 
 ### Task 4: Practice app and journal
 
