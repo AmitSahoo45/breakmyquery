@@ -1,0 +1,13 @@
+{
+  "customers.name": ["Asha", "Ravi", "Ravi", "Meera", "Kiran"],
+  "customers.city": ["Pune", "Delhi", "Bhubaneswar", null],
+  "products.name": ["Pen", "Notebook", "Bag", "Lamp"],
+  "products.category": ["Books", "Stationery", null],
+  "products.price": [0, 100, 250, 250, 500, 500],
+  "orders.order_date": ["2025-09-10 10:00", "2026-08-31 23:30", "2026-09-01 00:00", "2026-09-15 12:00", "2026-09-30 18:45", "2026-10-01 00:00"],
+  "orders.status": ["paid", "cancelled"],
+  "order_items.quantity": [1, 1, 2, 3],
+  "_row_counts": {
+    "customers": [1, 5], "products": [1, 4], "orders": [0, 5], "order_items": [0, 6]
+  }
+}

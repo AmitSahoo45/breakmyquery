@@ -1,0 +1,180 @@
+[
+  {
+    "id": "e1_paid_orders",
+    "title": "Paid orders per customer",
+    "question": "Show every customer's name and how many paid orders they have. Customers with no paid orders must appear with 0.",
+    "expected_columns": ["name", "paid_orders"],
+    "order_matters": false,
+    "reference_sql": "SELECT c.name, COUNT(o.id) AS paid_orders\nFROM customers c\nLEFT JOIN orders o ON o.customer_id = c.id AND o.status = 'paid'\nGROUP BY c.id, c.name;",
+    "known_wrong": [
+      {"sql": "SELECT c.name, COUNT(*) AS paid_orders\nFROM customers c JOIN orders o ON o.customer_id = c.id\nWHERE o.status = 'paid'\nGROUP BY c.id, c.name;", "trap": "JOIN_TYPE"},
+      {"sql": "SELECT c.name, COUNT(o.id) AS paid_orders\nFROM customers c LEFT JOIN orders o ON o.customer_id = c.id\nWHERE o.status = 'paid'\nGROUP BY c.id, c.name;", "trap": "ON_VS_WHERE"},
+      {"sql": "SELECT c.name, COUNT(*) AS paid_orders\nFROM customers c\nLEFT JOIN orders o ON o.customer_id = c.id AND o.status = 'paid'\nGROUP BY c.id, c.name;", "trap": "COUNT_STAR_VS_COLUMN"}
+    ],
+    "known_correct": ["SELECT c.name,\n       (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id AND o.status = 'paid') AS paid_orders\nFROM customers c;"],
+    "sample_data": {
+      "customers": [[1, "Asha", "Pune"], [2, "Ravi", "Delhi"], [3, "Meera", "Bhubaneswar"]],
+      "products": [],
+      "orders": [[1, 1, "2026-09-02 10:15", "paid"], [2, 1, "2026-09-05 18:40", "cancelled"], [3, 2, "2026-09-07 09:00", "paid"], [4, 3, "2026-09-11 13:30", "paid"], [5, 3, "2026-09-12 16:05", "paid"]],
+      "order_items": []
+    },
+    "trap_datasets": [{
+      "customers": [[1, "Asha", "Pune"], [4, "Kiran", null], [5, "Dev", "Delhi"]],
+      "products": [],
+      "orders": [[1, 1, "2026-09-02 10:15", "paid"], [6, 4, "2026-09-15 11:00", "cancelled"]],
+      "order_items": []
+    }]
+  },
+  {
+    "id": "e2_not_in_pune",
+    "title": "Not in Pune",
+    "question": "List the names of customers who are not located in Pune. A customer whose city is unknown is not in Pune.",
+    "expected_columns": ["name"],
+    "order_matters": false,
+    "reference_sql": "SELECT name FROM customers WHERE city IS NULL OR city <> 'Pune';",
+    "known_wrong": [
+      {"sql": "SELECT name FROM customers WHERE city <> 'Pune';", "trap": "NULL_COMPARISON"},
+      {"sql": "SELECT name FROM customers WHERE city NOT IN ('Pune');", "trap": "NULL_COMPARISON"}
+    ],
+    "known_correct": ["SELECT name FROM customers WHERE COALESCE(city, '') <> 'Pune';"],
+    "sample_data": {
+      "customers": [[1, "Asha", "Pune"], [2, "Ravi", "Delhi"], [3, "Meera", "Bhubaneswar"]],
+      "products": [], "orders": [], "order_items": []
+    },
+    "trap_datasets": [{
+      "customers": [[1, "Asha", "Pune"], [2, "Kiran", null]],
+      "products": [], "orders": [], "order_items": []
+    }]
+  },
+  {
+    "id": "e3_paid_orders_revenue",
+    "title": "Paid orders and revenue",
+    "question": "For each customer with at least one paid order that has items, show the name, the number of those paid orders, and revenue (sum of quantity × product price). Ignore cancelled orders and orders without items.",
+    "expected_columns": ["name", "paid_orders", "revenue"],
+    "order_matters": false,
+    "reference_sql": "SELECT c.name,\n       COUNT(DISTINCT o.id) AS paid_orders,\n       SUM(oi.quantity * p.price) AS revenue\nFROM customers c\nJOIN orders o ON o.customer_id = c.id AND o.status = 'paid'\nJOIN order_items oi ON oi.order_id = o.id\nJOIN products p ON p.id = oi.product_id\nGROUP BY c.id, c.name;",
+    "known_wrong": [
+      {"sql": "SELECT c.name,\n       COUNT(o.id) AS paid_orders,\n       SUM(oi.quantity * p.price) AS revenue\nFROM customers c\nJOIN orders o ON o.customer_id = c.id AND o.status = 'paid'\nJOIN order_items oi ON oi.order_id = o.id\nJOIN products p ON p.id = oi.product_id\nGROUP BY c.id, c.name;", "trap": "JOIN_FANOUT"},
+      {"sql": "SELECT c.name,\n       COUNT(DISTINCT o.id) AS paid_orders,\n       SUM(p.price) AS revenue\nFROM customers c\nJOIN orders o ON o.customer_id = c.id AND o.status = 'paid'\nJOIN order_items oi ON oi.order_id = o.id\nJOIN products p ON p.id = oi.product_id\nGROUP BY c.id, c.name;", "trap": "AGGREGATE_LOGIC"}
+    ],
+    "known_correct": ["SELECT c.name,\n       COUNT(DISTINCT oi.order_id) AS paid_orders,\n       SUM(oi.quantity * p.price) AS revenue\nFROM customers c\nJOIN orders o ON o.customer_id = c.id AND o.status = 'paid'\nJOIN order_items oi ON oi.order_id = o.id\nJOIN products p ON p.id = oi.product_id\nGROUP BY c.id, c.name;"],
+    "sample_data": {
+      "customers": [[1, "Asha", "Pune"], [2, "Ravi", "Delhi"]],
+      "products": [[1, "Pen", "Stationery", 100], [2, "Notebook", "Books", 250]],
+      "orders": [[1, 1, "2026-09-02 10:15", "paid"], [2, 1, "2026-09-05 18:40", "cancelled"], [3, 2, "2026-09-07 09:00", "paid"]],
+      "order_items": [[1, 1, 1, 1], [2, 2, 2, 2], [3, 3, 2, 1]]
+    },
+    "trap_datasets": [{
+      "customers": [[1, "Asha", "Pune"]],
+      "products": [[1, "Pen", "Stationery", 100], [2, "Notebook", "Books", 250]],
+      "orders": [[1, 1, "2026-09-02 10:15", "paid"]],
+      "order_items": [[1, 1, 1, 2], [2, 1, 2, 1]]
+    }]
+  },
+  {
+    "id": "e4_most_expensive",
+    "title": "Most expensive product(s)",
+    "question": "Show the most expensive product. If several products share the highest price, show all of them.",
+    "expected_columns": ["name", "price"],
+    "order_matters": false,
+    "reference_sql": "SELECT name, price FROM products WHERE price = (SELECT MAX(price) FROM products);",
+    "known_wrong": [{"sql": "SELECT name, price FROM products ORDER BY price DESC LIMIT 1;", "trap": "TIES"}],
+    "known_correct": ["SELECT name, price FROM (\n  SELECT name, price, RANK() OVER (ORDER BY price DESC) AS r FROM products\n) WHERE r = 1;"],
+    "sample_data": {
+      "customers": [],
+      "products": [[1, "Pen", "Stationery", 100], [2, "Notebook", "Books", 250], [3, "Bag", null, 500]],
+      "orders": [], "order_items": []
+    },
+    "trap_datasets": [{
+      "customers": [],
+      "products": [[1, "Bag", null, 500], [2, "Lamp", null, 500], [3, "Pen", "Stationery", 100]],
+      "orders": [], "order_items": []
+    }]
+  },
+  {
+    "id": "e5_cancellation_rate",
+    "title": "Cancellation rate",
+    "question": "What percentage of all orders are cancelled? Round to 1 decimal place.",
+    "expected_columns": ["cancelled_pct"],
+    "order_matters": false,
+    "reference_sql": "SELECT ROUND(100.0 * SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) / COUNT(*), 1) AS cancelled_pct\nFROM orders;",
+    "known_wrong": [{"sql": "SELECT ROUND(100 * SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) / COUNT(*), 1) AS cancelled_pct\nFROM orders;", "trap": "INTEGER_DIVISION"}],
+    "known_correct": ["SELECT ROUND(AVG(CASE WHEN status = 'cancelled' THEN 100.0 ELSE 0 END), 1) AS cancelled_pct FROM orders;"],
+    "sample_data": {
+      "customers": [[1, "Asha", "Pune"]], "products": [],
+      "orders": [[1, 1, "2026-09-02 10:15", "paid"], [2, 1, "2026-09-05 18:40", "cancelled"], [3, 1, "2026-09-07 09:00", "paid"], [4, 1, "2026-09-11 13:30", "paid"]],
+      "order_items": []
+    },
+    "trap_datasets": [{
+      "customers": [[1, "Asha", "Pune"]], "products": [],
+      "orders": [[1, 1, "2026-09-02 10:15", "paid"], [2, 1, "2026-09-05 18:40", "cancelled"], [3, 1, "2026-09-07 09:00", "paid"]],
+      "order_items": []
+    }]
+  },
+  {
+    "id": "e6_september_orders",
+    "title": "September 2026 paid orders",
+    "question": "How many paid orders were placed in September 2026? order_date is 'YYYY-MM-DD HH:MM'.",
+    "expected_columns": ["n"],
+    "order_matters": false,
+    "reference_sql": "SELECT COUNT(*) AS n FROM orders\nWHERE status = 'paid' AND order_date >= '2026-09-01' AND order_date < '2026-10-01';",
+    "known_wrong": [
+      {"sql": "SELECT COUNT(*) AS n FROM orders\nWHERE status = 'paid' AND order_date BETWEEN '2026-09-01' AND '2026-09-30';", "trap": "DATE_BOUNDARY"},
+      {"sql": "SELECT COUNT(*) AS n FROM orders\nWHERE status = 'paid' AND strftime('%m', order_date) = '09';", "trap": "DATE_BOUNDARY"}
+    ],
+    "known_correct": ["SELECT COUNT(*) AS n FROM orders\nWHERE status = 'paid' AND substr(order_date, 1, 7) = '2026-09';"],
+    "sample_data": {
+      "customers": [[1, "Asha", "Pune"]], "products": [],
+      "orders": [[1, 1, "2026-08-31 23:30", "paid"], [2, 1, "2026-09-01 00:00", "paid"], [3, 1, "2026-09-15 12:00", "paid"], [4, 1, "2026-10-01 00:00", "paid"], [5, 1, "2026-09-20 14:00", "cancelled"]],
+      "order_items": []
+    },
+    "trap_datasets": [{
+      "customers": [[1, "Asha", "Pune"]], "products": [],
+      "orders": [[1, 1, "2026-09-30 18:45", "paid"], [2, 1, "2025-09-10 10:00", "paid"]],
+      "order_items": []
+    }]
+  },
+  {
+    "id": "e7_more_than_two_orders",
+    "title": "Customers with more than 2 orders",
+    "question": "List the id and name of customers who placed more than 2 orders (any status).",
+    "expected_columns": ["id", "name"],
+    "order_matters": false,
+    "reference_sql": "SELECT c.id, c.name FROM customers c\nJOIN orders o ON o.customer_id = c.id\nGROUP BY c.id, c.name\nHAVING COUNT(*) > 2;",
+    "known_wrong": [{"sql": "SELECT c.id, c.name FROM customers c\nJOIN orders o ON o.customer_id = c.id\nGROUP BY c.name\nHAVING COUNT(*) > 2;", "trap": "GROUP_BY_GRAIN"}],
+    "known_correct": ["SELECT id, name FROM customers\nWHERE id IN (SELECT customer_id FROM orders GROUP BY customer_id HAVING COUNT(*) > 2);"],
+    "sample_data": {
+      "customers": [[1, "Asha", "Pune"], [2, "Ravi", "Delhi"]], "products": [],
+      "orders": [[1, 1, "2026-09-02 10:15", "paid"], [2, 1, "2026-09-05 18:40", "cancelled"], [3, 1, "2026-09-07 09:00", "paid"], [4, 2, "2026-09-11 13:30", "paid"]],
+      "order_items": []
+    },
+    "trap_datasets": [{
+      "customers": [[1, "Ravi", "Pune"], [2, "Ravi", "Delhi"]], "products": [],
+      "orders": [[1, 1, "2026-09-02 10:15", "paid"], [2, 1, "2026-09-05 18:40", "cancelled"], [3, 2, "2026-09-07 09:00", "paid"]],
+      "order_items": []
+    }]
+  },
+  {
+    "id": "e8_never_paid",
+    "title": "Never paid",
+    "question": "List the names of customers who have never had a paid order. Include customers who have no orders at all.",
+    "expected_columns": ["name"],
+    "order_matters": false,
+    "reference_sql": "SELECT c.name FROM customers c\nWHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id AND o.status = 'paid');",
+    "known_wrong": [
+      {"sql": "SELECT DISTINCT c.name FROM customers c\nJOIN orders o ON o.customer_id = c.id\nWHERE o.status = 'cancelled';", "trap": "ANTI_JOIN"},
+      {"sql": "SELECT c.name FROM customers c\nLEFT JOIN orders o ON o.customer_id = c.id\nWHERE o.status <> 'paid' OR o.id IS NULL;", "trap": "ANTI_JOIN"}
+    ],
+    "known_correct": ["SELECT c.name FROM customers c\nLEFT JOIN orders o ON o.customer_id = c.id AND o.status = 'paid'\nWHERE o.id IS NULL;"],
+    "sample_data": {
+      "customers": [[1, "Asha", "Pune"], [2, "Ravi", "Delhi"], [3, "Meera", "Bhubaneswar"]], "products": [],
+      "orders": [[1, 1, "2026-09-02 10:15", "paid"], [2, 1, "2026-09-05 18:40", "paid"], [3, 2, "2026-09-07 09:00", "cancelled"], [4, 3, "2026-09-11 13:30", "paid"]],
+      "order_items": []
+    },
+    "trap_datasets": [{
+      "customers": [[1, "Kiran", null], [2, "Asha", "Pune"]], "products": [],
+      "orders": [[1, 2, "2026-09-02 10:15", "paid"], [2, 2, "2026-09-05 18:40", "cancelled"]],
+      "order_items": []
+    }]
+  }
+]
