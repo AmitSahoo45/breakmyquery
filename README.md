@@ -1,6 +1,6 @@
 ﻿# BreakMyQuery
 
-A SQL practice tutor that finds small datasets which break your query. Inspect the evidence and work out the repair yourself. Eight SQLite exercises cover joins, NULLs, aggregation, ties, arithmetic, dates and anti-joins. Run locally with Ollama or preview the public-demo entrypoint with hosted Gemma 4.
+A SQL practice tutor that finds small datasets which break your query. Inspect the evidence and work out the repair yourself. Eight SQLite exercises cover joins, NULLs, aggregation, ties, arithmetic, dates and anti-joins. [Try the hosted Gemma 4 demo](https://breakmyquery.streamlit.app), or run locally with Ollama.
 
 The hosted **Gemma 4** evaluation catches **14/14 deliberately wrong queries**, with **0/8 false positives** across equivalent alternatives. One equivalent case needed a separate follow-up after the primary call returned no usable output; [the Gemma API report](eval_results_gemma_api.md) preserves both results. The earlier local trial caught **9/14 with Llama 3.2**; seeded fuzzing caught **14/14**, with **0/8 false positives**. See [Llama trial results](eval_results_llama32.md), [build progress](plan/progress.md) and [the local demo guide](docs/demo.md).
 
@@ -8,9 +8,9 @@ The hosted **Gemma 4** evaluation catches **14/14 deliberately wrong queries**, 
 
 ## Challenge submission
 
-Prepared for the [Hacktoberfest Weekend Challenge: Build for a Friend](https://dev.to/challenges/hacktoberfest-weekend-2026-10-01). The submission deadline is **5 October 2026 at 12:29 pm IST (06:59 UTC)**. The official rules accept a deployed demo **or a video**, plus a code link. The verified AI demonstration uses local Llama 3.2 dataset proposals; a fuzz-only recording does not demonstrate that model path.
+Prepared for the [Hacktoberfest Weekend Challenge: Build for a Friend](https://dev.to/challenges/hacktoberfest-weekend-2026-10-01). The submission deadline is **5 October 2026 at 12:29 pm IST (06:59 UTC)**. The official rules accept a deployed demo **or a video**, plus a code link. The owner deployed [BreakMyQuery](https://breakmyquery.streamlit.app). A signed-out browser verified a real Gemma 4 E1 counterexample, an equivalent query passing 403 stress tests, SQL-error handling, saved history, Retry and separate session histories. Generated hints remain disabled. See [hosted verification](docs/hosted-verification.md) for the exact scope.
 
-See the [submission readiness review](docs/submission-readiness.md) and [DEV post draft](docs/dev-submission-draft.md). The [code repository](https://github.com/AmitSahoo45/breakmyquery) is public. A deployed demo/video link and the friend's actual problem still need to be added before publication. Real feedback and resulting changes are optional additions to strengthen the write-up. The draft is not a published entry.
+The [code repository](https://github.com/AmitSahoo45/breakmyquery) is public, with hosted-provider code on `main` at `38365cd`. At the latest anonymous check, `docs/`, `eval_results_gemma_api.md` and `eval_results_llama32.md` were not published, so their GitHub links returned 404; the owner still needs to review and push those supporting files and these documentation updates. The [DEV draft](docs/dev-submission-draft.md) now includes the real friend context: a new graduate hire struggling with SQL joins. Applicable team credit and the hosted API audience condition remain unresolved in the [readiness review](docs/submission-readiness.md). The DEV entry remains unpublished.
 
 Any commits made after the challenge deadline must be listed here with their hashes, dates and a description of what changed. The local commits reviewed on 4 October are within the entry period; this statement does not verify when a GitHub repository was created.
 
@@ -74,7 +74,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run.ps1 -PublicDem
 
 This uses Google's API for open-weight Gemma 4 dataset proposals. SQLite verifies them on the app server; seeded fuzzing handles missed cases and provider failures. Hints and classifications remain disabled. Each visitor has an isolated in-memory history of up to 50 attempts, which can disappear on reconnect or restart. Submitted SQL is sent to Google; do not submit private information.
 
-The single-key adapter has shared per-process admission limits, one active request and no automatic retries. It does not rotate accounts. Free API quotas are not a worldwide hosting permission: Google's terms require Paid Services for clients available to EEA, Swiss or UK users. Review the [deployment guide](docs/hosted-demo.md) before sharing a public link. No billing change or public deployment has been performed by the agent.
+The single-key adapter has shared per-process admission limits, one active request and no automatic retries. It does not rotate accounts. Google's terms require Paid Services for API clients available to EEA, Swiss or UK users. The intended audience and billing arrangement remain unresolved; the live URL does not establish approval for a billing change or worldwide free-tier availability. No billing change has been made by the agent. See the [deployment guide](docs/hosted-demo.md).
 
 ## Existing Llama 3.2 trial (no download)
 
