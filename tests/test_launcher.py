@@ -37,3 +37,9 @@ def test_launcher_forwards_invalid_option_and_exit_status(tmp_path):
     assert result.returncode == 2
     assert b'No such option' in result.stderr
     assert b'--bmq-invalid-option' in result.stderr
+
+
+def test_launcher_accepts_public_demo_and_forwards_help(tmp_path):
+    result = launch(tmp_path, '-PublicDemo', '--help')
+    assert result.returncode == 0, result.stderr.decode('utf-8', errors='replace')
+    assert b'Usage: streamlit run' in result.stdout

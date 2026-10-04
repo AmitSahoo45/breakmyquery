@@ -9,7 +9,7 @@ import random
 import time
 from typing import Literal
 
-from bmq import llm
+from bmq import gemini, llm
 from bmq.compare import Diff, diff, equal
 from bmq.config import ROOT, Settings, get_settings
 from bmq.db import LoadError, QueryError, Result, build_db, run_query, validate_learner_sql
@@ -66,6 +66,7 @@ def check(
     Authored traps and known-answer fixtures are never accessed here.
     """
     settings = settings or get_settings()
+    gemini.reset_note()
     started = time.monotonic()
     stats = {
         'gemma_rounds': 0,
@@ -84,6 +85,8 @@ def check(
 
     def finish(status, **kwargs):
         stats['seconds'] = round(time.monotonic() - started, 6)
+        if settings.model_provider == 'gemini' and gemini.model_note():
+            stats['model_note'] = gemini.model_note()
         return Verdict(status=status, stats=dict(stats), **kwargs)
 
     progress('sample', 'Running on sample…')
@@ -144,9 +147,10 @@ def check(
                 continue
             schema_sql = (ROOT / 'data/schema.sql').read_text(encoding='utf-8')
             tried_ideas = []
-            for round_index in range(settings.gemma_rounds):
+            rounds = min(1, settings.gemma_rounds) if settings.model_provider == 'gemini' else settings.gemma_rounds
+            for round_index in range(rounds):
                 stats['gemma_rounds'] += 1
-                progress('gemma', f'{settings.model} is hunting for a breaking case (round {round_index + 1}/{settings.gemma_rounds})…')
+                progress('gemma', f'{settings.model} is hunting for a breaking case (round {round_index + 1}/{rounds})…')
                 proposals = llm.propose_datasets(
                     schema_sql,
                     exercise['question'],

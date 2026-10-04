@@ -20,6 +20,8 @@ E1 = EXERCISES[0]
 def app_env(monkeypatch):
     path = ROOT / '.cache' / ('app-test-' + uuid.uuid4().hex)
     path.mkdir(parents=True)
+    monkeypatch.setenv('BMQ_PUBLIC_DEMO', 'false')
+    monkeypatch.setenv('BMQ_MODEL_PROVIDER', 'ollama')
     monkeypatch.setenv('BMQ_DATA_DIR', str(path))
     monkeypatch.setenv('BMQ_HUNT_ORDER', 'fuzz')
     monkeypatch.setenv('BMQ_MODEL_HINTS', 'true')

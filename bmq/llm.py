@@ -13,6 +13,7 @@ import ollama
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from bmq.config import Settings, get_settings
+from bmq import gemini
 from bmq.db import TABLE_COLUMNS, TABLES, LoadError, build_db, dump_dataset
 
 MAX_INSERT_BYTES = 16_384
@@ -128,6 +129,8 @@ def model_available(settings=None) -> bool:
     """Check the configured local model without pulling or generating anything."""
     try:
         settings = settings or get_settings()
+        if settings.model_provider == 'gemini':
+            return gemini.configured(settings)
         with _client(settings, listing=True) as client:
             installed = client.list()
         requested = settings.model if ":" in settings.model else settings.model + ":latest"
@@ -141,6 +144,8 @@ def _chat(schema, messages, temperature, settings, *, prose_fields=()):
     messages = [dict(message) for message in messages]
     try:
         settings = settings or get_settings()
+        if settings.model_provider == 'gemini':
+            return gemini.generate(schema, messages, temperature, settings) if schema is Proposal else None
         with _client(settings) as client:
             for attempt in range(2):
                 response = client.chat(

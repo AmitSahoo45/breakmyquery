@@ -1,4 +1,4 @@
-"""BreakMyQuery: SQLite evidence first, optional local explanations second."""
+"""BreakMyQuery: SQLite-verified evidence, with local or hosted model proposals."""
 
 from collections import Counter
 from dataclasses import replace
@@ -136,6 +136,9 @@ def show_verdict(attempt, schema, settings):
     st.subheader('Your last run')
     with st.expander('Query used for this result'):
         st.code(attempt['sql'], language='sql')
+    if verdict.stats.get('model_note'):
+        # The hunter supplies fixed status text, never a provider error body.
+        st.info(verdict.stats['model_note'])
     if verdict.status == 'ERROR':
         st.error('Your query could not run.')
         st.text(verdict.error)
@@ -188,7 +191,7 @@ def show_verdict(attempt, schema, settings):
         show_hints(attempt, settings)
 
 
-def practice(exercise, schema, settings):
+def practice(exercise, schema, settings, history):
     st.title(exercise['title'])
     st.write(exercise['question'])
     with st.expander('Database schema'):
@@ -198,10 +201,20 @@ def practice(exercise, schema, settings):
     if 'sql_editor' not in st.session_state:
         st.session_state.sql_editor = st.session_state.drafts.get(exercise['id'], '')
     st.text_area('Your SQL', key='sql_editor', height=210,
-                 placeholder='Write a SQLite SELECT query…', max_chars=100_000)
-    st.caption('Read-only SQLite · duplicate rows matter · everything runs locally')
+                 placeholder='Write a SQLite SELECT query…', max_chars=4_000 if settings.public_demo else 100_000)
+    if settings.model_provider == 'gemini':
+        st.caption('SQLite verifies results on this server. Your SQL is sent to Google for test-data proposals. '
+                   'Google may use free-tier inputs and outputs to improve its products. '
+                   'Use practice queries without private information.')
+    elif settings.public_demo:
+        st.caption('Read-only SQLite · duplicate rows matter · processing runs on this server')
+    else:
+        st.caption('Read-only SQLite · duplicate rows matter · everything runs locally')
     if st.button('Run', type='primary', width='content'):
         sql = st.session_state.sql_editor
+        if settings.public_demo and len(sql) > 4_000:
+            st.warning('Keep your query within 4,000 characters for this public demo.')
+            return
         st.session_state.drafts[exercise['id']] = sql
         st.session_state.journal_warning = None
         st.session_state.model_online = llm.model_available(settings)
@@ -211,12 +224,14 @@ def practice(exercise, schema, settings):
             progress.update(label='Run finished', state='complete', expanded=False)
         attempt_id = None
         try:
-            attempt_id = journal.log_attempt(exercise['id'], sql, verdict, settings=settings)
+            attempt_id = history.log_attempt(exercise['id'], sql, verdict, settings=settings)
         except (OSError, sqlite3.Error, ValueError):
-            st.session_state.journal_warning = 'This run could not be saved to your local journal.'
+            st.session_state.journal_warning = ('This run could not be saved to your session history.'
+                                                if settings.public_demo else
+                                                'This run could not be saved to your local journal.')
         st.session_state.run_number += 1
         future = None
-        if (settings.model_hints and st.session_state.model_online
+        if (not settings.public_demo and settings.model_hints and st.session_state.model_online
                 and verdict.status in ('WRONG_ON_SAMPLE', 'HIDDEN_BUG')):
             future = tutor.submit_explanation(exercise['question'], schema, sql, verdict, attempt_id, settings=settings)
         st.session_state.attempt = {
@@ -236,7 +251,8 @@ def traps(attempts, exercises, settings):
     st.write('Small counterexamples, remembered. Retry a query and test your next idea.')
     failures = [a for a in attempts if a['verdict'] in ('WRONG_ON_SAMPLE', 'HIDDEN_BUG')]
     if not failures:
-        st.info('No traps yet. Run an exercise to start your local journal.')
+        st.info('No traps yet. Run an exercise to start your session history.' if settings.public_demo
+                else 'No traps yet. Run an exercise to start your local journal.')
         return
     titles = {e['id']: e['title'] for e in exercises}
 
@@ -277,7 +293,7 @@ def main():
     try:
         settings = get_settings()
     except ValueError as error:
-        st.error('Check your local configuration.')
+        st.error('Check the app configuration.')
         st.text(str(error))
         return
     exercises = json.loads((ROOT / 'data/exercises.json').read_text(encoding='utf-8'))
@@ -292,11 +308,18 @@ def main():
         state.run_number = 0
     if 'model_online' not in state:
         state.model_online = llm.model_available(settings)
+    if settings.public_demo:
+        if 'session_journal' not in state:
+            state.session_journal = journal.SessionJournal()
+        history = state.session_journal
+    else:
+        history = journal
     try:
-        attempts = journal.list_attempts(settings=settings)
+        attempts = history.list_attempts(settings=settings)
     except (OSError, sqlite3.Error, ValueError):
         attempts = []
-        st.warning('The local journal could not be opened. Practice is still available.')
+        st.warning('Session history could not be opened. Practice is still available.' if settings.public_demo
+                   else 'The local journal could not be opened. Practice is still available.')
     latest = {}
     for attempt in attempts:
         latest.setdefault(attempt['exercise_id'], attempt['verdict'])
@@ -311,16 +334,26 @@ def main():
                  format_func=lambda eid: titles[eid],
                  captions=[statuses.get(latest.get(eid), '○ Not run') for eid in titles])
         st.divider()
-        st.text(f'Model online ({settings.model})' if state.model_online
-                else f'Model offline: fuzz only ({settings.model})')
+        if settings.model_provider == 'gemini':
+            st.text(f'Model configured ({settings.model})' if state.model_online
+                    else f'Model not configured: fuzz only ({settings.model})')
+            st.caption('Requests depend on API access and available quota.')
+        else:
+            st.text(f'Model online ({settings.model})' if state.model_online
+                    else f'Model offline: fuzz only ({settings.model})')
         if not settings.model_hints:
             st.caption('Evidence-only mode · model hints off')
-        if st.button('Refresh model status'):
+        if st.button('Refresh model configuration' if settings.model_provider == 'gemini' else 'Refresh model status'):
             state.model_online = llm.model_available(settings)
             st.rerun()
-        st.caption('Local practice. No account. No solution reveals.')
+        if settings.public_demo:
+            st.caption('No account. Your last 50 attempts stay in this session only. '
+                       'Refreshing, reconnecting or restarting the app can clear them. No solution reveals.')
+        else:
+            st.caption('No account. No solution reveals.' if settings.model_provider == 'gemini'
+                       else 'Local practice. No account. No solution reveals.')
     if state.page == 'Practice':
-        practice(next(e for e in exercises if e['id'] == state.exercise_id), schema, settings)
+        practice(next(e for e in exercises if e['id'] == state.exercise_id), schema, settings, history)
     else:
         traps(attempts, exercises, settings)
 

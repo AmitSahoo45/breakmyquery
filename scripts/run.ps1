@@ -1,3 +1,5 @@
+param([switch]$PublicDemo)
+
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if ([System.IO.Path]::GetPathRoot($repoRoot) -ne 'D:\') {
@@ -18,14 +20,16 @@ $env:PYTHONPYCACHEPREFIX = Join-Path $repoRoot '.cache\pycache'
 $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
 $env:STREAMLIT_BROWSER_GATHER_USAGE_STATS = 'false'
+$env:STREAMLIT_SERVER_ADDRESS = '127.0.0.1'
 if (-not $env:BMQ_DATA_DIR) { $env:BMQ_DATA_DIR = '.bmq' }
 
 $pythonExe = Join-Path $repoRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $pythonExe)) {
     throw 'Local Python is missing. Run scripts\setup.ps1 first.'
 }
-if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'app.py'))) {
-    throw 'app.py is missing from the repository.'
+$appEntry = if ($PublicDemo) { 'cloud_app.py' } else { 'app.py' }
+if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $appEntry))) {
+    throw "$appEntry is missing from the repository."
 }
-& $pythonExe -m streamlit run app.py @args
+& $pythonExe -m streamlit run $appEntry @args
 exit $LASTEXITCODE

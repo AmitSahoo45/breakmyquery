@@ -29,6 +29,42 @@ def explanation(text="Kiran has no paid order and disappears."):
                        nudge="Which clause keeps Kiran?", hint=None)
 
 
+def test_session_journal_owns_copies_and_isolates_visitors():
+    from bmq import journal
+
+    assert hasattr(journal, 'SessionJournal'), 'Public visitors need independent in-memory history.'
+    first, second = journal.SessionJournal(), journal.SessionJournal()
+    dataset = {'customers': [[4, 'Kiran', None]], 'products': [], 'orders': [], 'order_items': []}
+    attempt_id = first.log_attempt('e1', 'SELECT name FROM customers',
+                                   Verdict('HIDDEN_BUG', dataset=dataset, found_by='gemma'))
+    dataset['customers'][0][1] = 'Changed outside the journal'
+    saved = first.list_attempts()
+    assert saved[0]['id'] == attempt_id
+    assert saved[0]['counterexample']['customers'] == [[4, 'Kiran', None]]
+    assert saved[0]['found_by'] == 'gemma'
+    assert saved[0]['mistake_type'] is None and saved[0]['what_happened'] is None
+    saved[0]['counterexample']['customers'].clear()
+    saved[0]['learner_sql'] = 'Changed returned data'
+    assert first.list_attempts()[0]['counterexample']['customers'] == [[4, 'Kiran', None]]
+    assert first.list_attempts()[0]['learner_sql'] == 'SELECT name FROM customers'
+    assert second.list_attempts() == []
+
+
+def test_session_journal_retains_last_fifty_with_unique_ids():
+    from bmq import journal
+
+    assert hasattr(journal, 'SessionJournal'), 'Public history must have a bounded in-memory store.'
+    history = journal.SessionJournal()
+    ids = [history.log_attempt('e1', f'Query {number}', Verdict('PASSED')) for number in range(52)]
+    rows = history.list_attempts()
+    assert len(rows) == 50
+    assert len(set(ids)) == 52
+    assert rows[0]['learner_sql'] == 'Query 51'
+    assert rows[-1]['learner_sql'] == 'Query 2'
+    assert rows[0]['id'] > rows[-1]['id']
+    assert datetime.fromisoformat(rows[0]['ts']).utcoffset() == timezone.utc.utcoffset(None)
+
+
 @pytest.mark.parametrize("status", ["ERROR", "WRONG_ON_SAMPLE", "HIDDEN_BUG", "PASSED"])
 def test_logs_each_verdict_without_inventing_offline_classification(journal_settings, status):
     from bmq.journal import list_attempts, log_attempt
@@ -120,12 +156,15 @@ def test_thread_calls_use_independent_connections(journal_settings):
 def test_relative_direct_settings_uses_repo_root_not_cwd(journal_settings, monkeypatch):
     from bmq.journal import list_attempts, log_attempt
 
-    monkeypatch.chdir(journal_settings.data_dir)
-    relative = journal_settings.data_dir.relative_to(ROOT) / "nested"
-    settings = replace(journal_settings, data_dir=relative)
-    log_attempt("e1", "SELECT 1", Verdict(status="PASSED"), settings=settings)
-    assert (ROOT / relative / "journal.db").is_file()
-    assert len(list_attempts(settings)) == 1
+    # Restore cwd before the directory fixture is removed, even when an
+    # autouse fixture extends the lifetime of pytest's monkeypatch fixture.
+    with monkeypatch.context() as cwd:
+        cwd.chdir(journal_settings.data_dir)
+        relative = journal_settings.data_dir.relative_to(ROOT) / "nested"
+        settings = replace(journal_settings, data_dir=relative)
+        log_attempt("e1", "SELECT 1", Verdict(status="PASSED"), settings=settings)
+        assert (ROOT / relative / "journal.db").is_file()
+        assert len(list_attempts(settings)) == 1
 
 
 @pytest.mark.parametrize("operation", ["log", "update", "list"])

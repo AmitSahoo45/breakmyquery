@@ -1,6 +1,8 @@
-"""Repository-local attempt history, using a fresh connection for every call."""
+"""Repository-local history and bounded, private history for public sessions."""
 
+from collections import deque
 from contextlib import closing, contextmanager
+from copy import deepcopy
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -54,6 +56,40 @@ def _classification(explanation):
     if explanation is None:
         return None, None
     return explanation.mistake_type, safe_text(explanation.what_happened)
+
+
+class SessionJournal:
+    """Own the most recent 50 attempts of one Streamlit session, only in memory.
+
+    Instantiate per session, never as a shared resource. Public mode disables
+    background explanations, so only that session's UI writes this store.
+    """
+
+    def __init__(self):
+        self._attempts = deque(maxlen=50)
+        self._next_id = 1
+
+    def log_attempt(self, exercise_id, learner_sql, verdict, explanation=None, *, settings=None) -> int:
+        mistake_type, what_happened = _classification(explanation)
+        dataset = deepcopy(verdict.dataset)
+        attempt_id = self._next_id
+        self._attempts.appendleft({
+            'id': attempt_id,
+            'ts': datetime.now(timezone.utc).isoformat(),
+            'exercise_id': exercise_id,
+            'learner_sql': learner_sql,
+            'verdict': verdict.status,
+            'found_by': verdict.found_by,
+            'mistake_type': mistake_type,
+            'what_happened': what_happened,
+            'counterexample_json': json.dumps(dataset, ensure_ascii=False) if dataset is not None else None,
+            'counterexample': dataset,
+        })
+        self._next_id += 1
+        return attempt_id
+
+    def list_attempts(self, settings=None) -> list[dict]:
+        return deepcopy(list(self._attempts))
 
 
 def log_attempt(exercise_id, learner_sql, verdict, explanation=None, *, settings=None) -> int:
