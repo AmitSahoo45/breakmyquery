@@ -1,0 +1,13 @@
+.venv/
+.bmq/
+.cache/
+__pycache__/
+.pytest_cache/
+pytest-cache-files-*/
+.superpowers/
+*.pyc
+*.log
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml

@@ -27,7 +27,7 @@ def evaluate(settings: Settings | None = None, *, fuzz_only: bool = False) -> di
     """Return measurements for every wrong query and alternative, using seed 42.
 
     Each method gets an independent hunt. Initial model unavailability skips
-    every Gemma run; the fuzz-only flag avoids even contacting Ollama.
+    every model run; the fuzz-only flag avoids even contacting Ollama.
     """
     from bmq import hunter, llm
 
@@ -133,10 +133,10 @@ def format_report(report: dict) -> str:
     lines = [
         "# Hunter evaluation", "", f"Generated (UTC): {report['generated_at']}", "",
         f"Model: `{config['model']}`; host: `{config['ollama_host']}`; seed: {report['seed']}.",
-        f"Budgets: {config['gemma_rounds']} Gemma rounds; {config['fuzz_max']} fuzz datasets or "
+        f"Budgets: {config['gemma_rounds']} model rounds; {config['fuzz_max']} fuzz datasets or "
         f"{config['fuzz_seconds']} s per query; query timeout {config['query_timeout']} s; "
         f"Ollama timeout {config['ollama_timeout']} s.", "",
-        "Gemma-only and fuzz-only are separate runs. Combined hit rate is the union of their "
+        "Model-only and fuzz-only are separate runs. Combined hit rate is the union of their "
         "hits, not a timed combined pipeline. Timings include sample verification and shrinking; "
         "medians below use all measured known-wrong runs, including misses.", "",
         "Measured means at least one candidate completed both SQLite queries. Runs with no "
@@ -147,7 +147,7 @@ def format_report(report: dict) -> str:
     medians = []
     for mode in MODES:
         measured = [case[mode] for case in wrong if _measured(case[mode])]
-        label = mode.capitalize()
+        label = "Model" if mode == "gemma" else mode.capitalize()
         if measured:
             score = _fraction(sum(result["found"] for result in measured), len(measured))
             if len(measured) != len(wrong):
@@ -178,17 +178,18 @@ def format_report(report: dict) -> str:
               f"({len(correct)} alternatives in the catalog)", f"- Evaluation errors: {errors}"]
     for mode in MODES:
         results = [case[mode] for case in wrong + correct if case[mode] is not None]
-        lines.append(f"- {mode.capitalize()} diagnostics: "
+        label = "Model" if mode == "gemma" else mode.capitalize()
+        lines.append(f"- {label} diagnostics: "
                      f"{sum(result['skipped_candidates'] for result in results)} skipped candidates; "
                      f"{sum(result['failed_rounds'] for result in results)} failed model rounds; "
                      f"{sum(result['verified_candidates'] for result in results)} verified candidates "
                      "across wrong queries and alternatives")
     lines += ["", "## Known-wrong queries", "",
-              "| Exercise / variant | Trap | Gemma found? (rounds, seconds) | Fuzz found? (tries, seconds) | Minimal rows |",
+              "| Exercise / variant | Trap | Model found? (rounds, seconds) | Fuzz found? (tries, seconds) | Minimal rows |",
               "|---|---|---|---|---|"]
     for case in wrong:
         row_counts = "; ".join(
-            f"{mode.capitalize() if mode == 'gemma' else mode}: " + (
+            f"{'Model' if mode == 'gemma' else mode}: " + (
                 str(case[mode]["rows"]) if _measured(case[mode]) and case[mode]["found"] else "N/A"
             ) for mode in MODES
         )
@@ -201,7 +202,7 @@ def format_report(report: dict) -> str:
               "The false-positive denominator includes runs with verified stress candidates or a "
               "concrete sample mismatch. Errors and runs with no verified stress candidates and no "
               "sample mismatch are excluded.", "",
-              "| Exercise / alternative | Gemma-only | Fuzz-only |", "|---|---|---|"]
+              "| Exercise / alternative | Model-only | Fuzz-only |", "|---|---|---|"]
     for case in correct:
         lines.append(f"| {case['exercise']} / {case['variant']} | "
                      f"{_cell(case['gemma'], 'gemma', report, alternative=True)} | "
@@ -216,7 +217,7 @@ def format_report(report: dict) -> str:
     lines += ["", "## Reproduce", "", "Run from the repository root in PowerShell:", "",
               "```powershell", command, "```", "",
               "Model sampling and wall-clock budgets can vary across runs; seed 42 fixes the fuzz "
-              "dataset sequence. Gemma requires the configured model already available in local Ollama.", ""]
+              "dataset sequence. Model runs require the configured model already available in local Ollama.", ""]
     return "\n".join(lines)
 
 

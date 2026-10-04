@@ -58,18 +58,55 @@ def test_report_uses_union_and_medians_of_wrong_query_runs():
     from scripts.eval_hunters import format_report
 
     text = format_report(report_fixture())
-    assert "Gemma hit rate: 1/2 (50.0%)" in text
+    assert "Model hit rate: 1/2 (50.0%)" in text
     assert "Fuzz hit rate: 1/2 (50.0%)" in text
     assert "Combined hit rate (union): 2/2 (100.0%)" in text
-    assert "Gemma 2.000 s; fuzz 4.000 s" in text
-    assert "Gemma: 1; fuzz: N/A" in text
-    assert "Gemma: N/A; fuzz: 2" in text
+    assert "Model 2.000 s; fuzz 4.000 s" in text
+    assert "Model: 1; fuzz: N/A" in text
+    assert "Model: N/A; fuzz: 2" in text
     assert "False positives: 0/2" in text
     assert "not a timed combined pipeline" in text
     assert "row-minimal" in text
     assert "2026-10-03T12:00:00+00:00" in text
     assert "BMQ_MODEL='gemma4:e4b'" in text
     assert "--fuzz-only" not in text
+
+
+@pytest.mark.parametrize("unmeasured", [False, True])
+def test_llama_report_attributes_model_results_without_gemma_display_labels(unmeasured):
+    from scripts.eval_hunters import format_report
+
+    report = report_fixture()
+    report["config"]["model"] = "llama3.2:latest"
+    if unmeasured:
+        report["wrong_cases"][1]["gemma"].update(
+            measured=False, verified_candidates=0,
+            unmeasured_reason="unavailable during run",
+        )
+    original = deepcopy(report)
+
+    text = format_report(report)
+
+    assert "Model: `llama3.2:latest`" in text
+    assert "Gemma" not in text
+    assert "2 model rounds" in text
+    assert "Model-only and fuzz-only are separate runs" in text
+    assert "Model diagnostics:" in text
+    assert "| Model found? (rounds, seconds) |" in text
+    assert "| Model-only | Fuzz-only |" in text
+    assert "Model: 1; fuzz: N/A" in text
+    assert "BMQ_MODEL='llama3.2:latest'" in text
+    assert "BMQ_GEMMA_ROUNDS='2'" in text
+    assert "False positives: 0/2" in text
+    if unmeasured:
+        assert "Model hit rate: 1/1 (100.0%); 1 not measured" in text
+        assert "Combined hit rate (union): N/A" in text
+        assert "N/A (unavailable during run)" in text
+    else:
+        assert "Model hit rate: 1/2 (50.0%)" in text
+        assert "Combined hit rate (union): 2/2 (100.0%)" in text
+        assert "Model 2.000 s; fuzz 4.000 s" in text
+    assert report == original
 
 
 def test_offline_report_does_not_score_gemma_as_zero_percent():
@@ -80,11 +117,11 @@ def test_offline_report_does_not_score_gemma_as_zero_percent():
     for case in report["wrong_cases"] + report["correct_cases"]:
         case["gemma"] = None
     text = format_report(report)
-    assert "Gemma hit rate: N/A (unavailable; not run)" in text
+    assert "Model hit rate: N/A (unavailable; not run)" in text
     assert "Combined hit rate (union): N/A" in text
     assert "Available-mode union: 1/2 (50.0%)" in text
     assert "False positives: 0/1" in text
-    assert "Gemma 0.000 s" not in text
+    assert "Model 0.000 s" not in text
 
 
 def test_mid_run_outage_is_excluded_from_measured_gemma_denominator():
@@ -94,7 +131,7 @@ def test_mid_run_outage_is_excluded_from_measured_gemma_denominator():
     report["wrong_cases"][1]["gemma"]["measured"] = False
     report["wrong_cases"][1]["gemma"]["unmeasured_reason"] = "unavailable during run"
     text = format_report(report)
-    assert "Gemma hit rate: 1/1 (100.0%); 1 not measured" in text
+    assert "Model hit rate: 1/1 (100.0%); 1 not measured" in text
     assert "Combined hit rate (union): N/A" in text
     assert "N/A (unavailable during run)" in text
 
@@ -248,11 +285,11 @@ def test_reachable_model_without_verified_candidates_is_unmeasured(monkeypatch):
         assert case["gemma"]["unmeasured_reason"] == "no verified candidates"
         assert case["gemma"]["failed_rounds"] == 2
     text = format_report(report)
-    assert "Gemma hit rate: N/A (no measured runs); 14 not measured" in text
+    assert "Model hit rate: N/A (no measured runs); 14 not measured" in text
     assert "Combined hit rate (union): N/A" in text
     assert "N/A (no verified candidates)" in text
     assert "44 failed model rounds" in text
-    assert "Gemma hit rate: 0/14" not in text
+    assert "Model hit rate: 0/14" not in text
     assert "unavailable" not in text
 
 

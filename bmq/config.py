@@ -20,6 +20,7 @@ class Settings:
     query_timeout: float = 2.0
     data_dir: Path = ROOT / '.bmq'
     ollama_timeout: float = 45.0
+    model_hints: bool = True
 
 
 def _number(name: str, default: int | float, *, integer: bool = False):
@@ -43,6 +44,9 @@ def get_settings() -> Settings:
     order = tuple(part.strip() for part in os.environ.get('BMQ_HUNT_ORDER', 'gemma,fuzz').split(',') if part.strip())
     if not order or len(set(order)) != len(order) or any(part not in ('gemma', 'fuzz') for part in order):
         raise ValueError('BMQ_HUNT_ORDER must be gemma, fuzz, or each once separated by a comma.')
+    hints = os.environ.get('BMQ_MODEL_HINTS', 'true').strip().lower()
+    if hints not in ('true', 'false'):
+        raise ValueError('BMQ_MODEL_HINTS must be true or false.')
     settings = Settings(
         model=os.environ.get('BMQ_MODEL', 'gemma4:e4b'),
         ollama_host=host,
@@ -53,6 +57,7 @@ def get_settings() -> Settings:
         query_timeout=_number('BMQ_QUERY_TIMEOUT', 2),
         data_dir=data_dir,
         ollama_timeout=_number('BMQ_OLLAMA_TIMEOUT', 45),
+        model_hints=hints == 'true',
     )
     if settings.query_timeout == 0 or settings.ollama_timeout == 0:
         raise ValueError('Query and Ollama timeouts must be greater than zero.')

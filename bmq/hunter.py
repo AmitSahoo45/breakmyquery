@@ -146,7 +146,7 @@ def check(
             tried_ideas = []
             for round_index in range(settings.gemma_rounds):
                 stats['gemma_rounds'] += 1
-                progress('gemma', f'Gemma is hunting for a breaking case (round {round_index + 1}/{settings.gemma_rounds})…')
+                progress('gemma', f'{settings.model} is hunting for a breaking case (round {round_index + 1}/{settings.gemma_rounds})…')
                 proposals = llm.propose_datasets(
                     schema_sql,
                     exercise['question'],

@@ -63,7 +63,7 @@ def test_verified_gemma_candidate_is_shrunk(monkeypatch):
 
 
 @pytest.mark.ollama
-def test_live_gemma_e1():
+def test_live_model_e1():
     from bmq.hunter import check
     from bmq.config import get_settings
     exercise = exercises()[0]
